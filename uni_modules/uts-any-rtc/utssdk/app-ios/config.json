@@ -1,0 +1,31 @@
+{
+  "deploymentTarget": "12.0",
+  "validArchitectures": [
+    "arm64"
+  ],
+  "frameworks": [
+    "AVFoundation.framework",
+    "AudioToolbox.framework",
+    "VideoToolbox.framework",
+    "CoreMedia.framework",
+    "CoreVideo.framework",
+    "GLKit.framework",
+    "OpenGLES.framework",
+    "MetalKit.framework",
+    "SystemConfiguration.framework",
+    "CFNetwork.framework",
+    "libc++.tbd",
+    "libresolv.tbd"
+  ],
+  "dependencies-pod-sources": [
+    "https://github.com/byteplus-sdk/byteplus-specs.git",
+    "https://cdn.cocoapods.org/"
+  ],
+  "dependencies-pods": [
+    {
+      "name": "BytePlusRTC",
+      "version": "3.60.1.2900",
+      "source": "https://github.com/byteplus-sdk/byteplus-specs.git"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+import { AnyRtcErrorCode, AnyRtcFail } from './interface.uts'
+
+export const AnyRtcUniErrorSubject = 'uts-any-rtc'
+
+export const AnyRtcUniErrors : Map<AnyRtcErrorCode, string> = new Map([
+  [9010001, 'Engine not initialized. Call createEngine() first.'],
+  [9010002, 'Engine already initialized. Call destroyEngine() before re-creating.'],
+  [9010003, 'Room not created. Call createRoom() first.'],
+  [9010004, 'Room already joined.'],
+  [9010005, 'Room not joined. Call joinRoom() first.'],
+  [9010006, 'Camera permission denied. Grant camera permission before calling startVideoCapture().'],
+  [9010007, 'Microphone permission denied. Grant microphone permission before calling startAudioCapture().'],
+  [9010008, 'Effects not initialized. Call initEffects() first.'],
+  [9010009, 'Effects license invalid or expired.'],
+  [9010010, 'Invalid parameter provided.'],
+  [9010011, 'SDK internal error.'],
+  [9010012, 'Effects resource file not found at specified path.']
+])
+
+export class AnyRtcFailImpl extends UniError implements AnyRtcFail {
+  override errCode : AnyRtcErrorCode
+  constructor(errCode : AnyRtcErrorCode) {
+    super()
+    this.errSubject = AnyRtcUniErrorSubject
+    this.errCode = errCode
+    this.errMsg = AnyRtcUniErrors.get(errCode) ?? 'Unknown error'
+  }
+}

@@ -1,0 +1,732 @@
+import {
+  CreateEngineOptions,
+  DestroyEngineOptions,
+  CreateRoomOptions,
+  JoinRoomOptions,
+  LeaveRoomOptions,
+  DestroyRoomOptions,
+  StartAudioCaptureOptions,
+  StopAudioCaptureOptions,
+  SetAudioProfileOptions,
+  SetAudioRouteOptions,
+  MuteLocalAudioOptions,
+  StartVideoCaptureOptions,
+  StopVideoCaptureOptions,
+  SetVideoEncoderConfigOptions,
+  SwitchCameraOptions,
+  SetLocalVideoCanvasOptions,
+  SetRemoteVideoCanvasOptions,
+  MuteLocalVideoOptions,
+  InitEffectsOptions,
+  EnableBeautyOptions,
+  SetBeautyParamOptions,
+  SetFilterOptions,
+  SetStickerOptions,
+  SetEffectNodesOptions,
+  UpdateEffectNodeOptions,
+  SetVirtualBackgroundOptions,
+  DisableVirtualBackgroundOptions,
+  DisposeEffectsOptions,
+  OnRoomStateChangedOptions,
+  OnUserJoinedOptions,
+  OnUserLeaveOptions,
+  OnUserPublishStreamOptions,
+  OnUserUnpublishStreamOptions,
+  OnFirstRemoteVideoFrameDecodedOptions,
+  OnRoomStatsOptions,
+  OnEngineWarningOptions,
+  OnEngineErrorOptions,
+  RemoveRoomEventListenerOptions,
+  RemoveEngineEventListenerOptions,
+  AnyRtcStreamIndex,
+} from '../interface.uts'
+
+import { AnyRtcFailImpl } from '../unierror.uts'
+
+import RtcEngineManager from 'uts.sdk.modules.utsAnyRtc.RtcEngineManager'
+import RtcRoomManager from 'uts.sdk.modules.utsAnyRtc.RtcRoomManager'
+import RtcEffectsManager from 'uts.sdk.modules.utsAnyRtc.RtcEffectsManager'
+import RtcEventProxy from 'uts.sdk.modules.utsAnyRtc.RtcEventProxy'
+import RtcTypeConverter from 'uts.sdk.modules.utsAnyRtc.RtcTypeConverter'
+import VideoEncoderConfig from 'com.ss.bytertc.engine.VideoEncoderConfig'
+import VideoCanvas from 'com.ss.bytertc.engine.VideoCanvas'
+import View from 'android.view.View'
+import Manifest from 'android.Manifest'
+import PackageManager from 'android.content.pm.PackageManager'
+import Build from 'android.os.Build'
+
+// Singleton event proxy instance
+let eventProxy : RtcEventProxy | null = null
+// Lifecycle callback references for cleanup
+let pauseCallback : (() => void) | null = null
+let resumeCallback : (() => void) | null = null
+
+// ===================== Helpers =====================
+
+function checkPermission(permission : string) : boolean {
+  if (Build.VERSION.SDK_INT < 23) return true
+  const context = UTSAndroid.getAppContext()!
+  return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+}
+
+function ensureEngine(failCallback : ((err : AnyRtcFailImpl) => void) | null, completeCallback : (() => void) | null) : boolean {
+  if (!RtcEngineManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010001)
+    failCallback?.(err)
+    completeCallback?.()
+    return false
+  }
+  return true
+}
+
+// ===================== Engine =====================
+
+export function createEngine(options : CreateEngineOptions) : void {
+  if (RtcEngineManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010002)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    const context = UTSAndroid.getAppContext()!
+    const proxy = new RtcEventProxy()
+    const engine = RtcEngineManager.createEngine(context, options.appId, proxy)
+    if (engine != null) {
+      eventProxy = proxy
+
+      pauseCallback = () => {
+        RtcEngineManager.onAppPause()
+      }
+      resumeCallback = () => {
+        RtcEngineManager.onAppResume()
+      }
+      UTSAndroid.onAppActivityPause(pauseCallback!)
+      UTSAndroid.onAppActivityResume(resumeCallback!)
+
+      options.success?.({})
+    } else {
+      const err = new AnyRtcFailImpl(9010011)
+      options.fail?.(err)
+    }
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function destroyEngine(options : DestroyEngineOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    if (pauseCallback != null) {
+      UTSAndroid.offAppActivityPause(pauseCallback!)
+      pauseCallback = null
+    }
+    if (resumeCallback != null) {
+      UTSAndroid.offAppActivityResume(resumeCallback!)
+      resumeCallback = null
+    }
+    RtcEffectsManager.dispose()
+    eventProxy?.clearEngineCallbacks()
+    RtcEventProxy.clearAllRoomHandlers()
+    RtcEngineManager.destroyEngine()
+    eventProxy = null
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+// ===================== Room =====================
+
+export function createRoom(options : CreateRoomOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const room = RtcRoomManager.createRoom(options.roomId)
+    if (room != null) {
+      options.success?.({})
+    } else {
+      const err = new AnyRtcFailImpl(9010011)
+      options.fail?.(err)
+    }
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function joinRoom(options : JoinRoomOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcRoomManager.hasRoom(options.roomId)) {
+    const err = new AnyRtcFailImpl(9010003)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    const channelProfile = RtcTypeConverter.toChannelProfile(options.roomProfile ?? 'communication')
+    const autoPublish = options.isAutoPublish ?? true
+    const result = RtcRoomManager.joinRoom(
+      options.roomId,
+      options.token,
+      options.userId,
+      options.userName,
+      channelProfile,
+      autoPublish,
+      autoPublish,
+      options.isAutoSubscribeAudio ?? true,
+      options.isAutoSubscribeVideo ?? true
+    )
+    if (result == 0) {
+      options.success?.({})
+    } else {
+      const err = new AnyRtcFailImpl(9010011)
+      options.fail?.(err)
+    }
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function leaveRoom(options : LeaveRoomOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcRoomManager.hasRoom(options.roomId)) {
+    const err = new AnyRtcFailImpl(9010003)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcRoomManager.leaveRoom(options.roomId)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function destroyRoom(options : DestroyRoomOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    RtcEventProxy.removeRoomHandler(options.roomId)
+    RtcRoomManager.destroyRoom(options.roomId)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+// ===================== Audio =====================
+
+export function startAudioCapture(options : StartAudioCaptureOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!checkPermission(Manifest.permission.RECORD_AUDIO)) {
+    const err = new AnyRtcFailImpl(9010007)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEngineManager.startAudioCapture()
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function stopAudioCapture(options : StopAudioCaptureOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    RtcEngineManager.stopAudioCapture()
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setAudioProfile(options : SetAudioProfileOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setAudioRoute(options : SetAudioRouteOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    RtcEngineManager.setDefaultAudioRoute(options.route == 'speaker')
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function muteLocalAudio(options : MuteLocalAudioOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcRoomManager.hasRoom(options.roomId)) {
+    const err = new AnyRtcFailImpl(9010003)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcRoomManager.muteLocalAudio(options.roomId, options.mute)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+// ===================== Video =====================
+
+export function startVideoCapture(options : StartVideoCaptureOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!checkPermission(Manifest.permission.CAMERA)) {
+    const err = new AnyRtcFailImpl(9010006)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEngineManager.startVideoCapture()
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function stopVideoCapture(options : StopVideoCaptureOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    RtcEngineManager.stopVideoCapture()
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setVideoEncoderConfig(options : SetVideoEncoderConfigOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const config = new VideoEncoderConfig()
+    config.width = (options.width ?? 640) as Int
+    config.height = (options.height ?? 480) as Int
+    config.frameRate = (options.frameRate ?? 15) as Int
+    config.maxBitrate = (options.bitrate ?? -1) as Int
+    RtcEngineManager.setVideoEncoderConfig(config)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function switchCamera(options : SwitchCameraOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const cameraId = RtcTypeConverter.toCameraId(options.facing ?? 'front')
+    RtcEngineManager.switchCamera(cameraId)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setLocalVideoCanvas(options : SetLocalVideoCanvasOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const streamIndex = RtcTypeConverter.toStreamIndex(options.streamIndex ?? 'main')
+    if (options.view != null) {
+      const canvas = new VideoCanvas()
+      canvas.renderView = options.view as View
+      canvas.renderMode = RtcTypeConverter.toRenderMode(options.renderMode ?? 'hidden')
+      RtcEngineManager.setLocalVideoCanvas(streamIndex, canvas)
+    } else {
+      RtcEngineManager.setLocalVideoCanvas(streamIndex, null)
+    }
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setRemoteVideoCanvas(options : SetRemoteVideoCanvasOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const streamIndex = RtcTypeConverter.toStreamIndex(options.streamIndex ?? 'main')
+    if (options.view != null) {
+      const canvas = new VideoCanvas()
+      canvas.renderView = options.view as View
+      canvas.renderMode = RtcTypeConverter.toRenderMode(options.renderMode ?? 'hidden')
+      RtcEngineManager.setRemoteVideoCanvas(options.roomId, options.uid, streamIndex, canvas)
+    } else {
+      RtcEngineManager.setRemoteVideoCanvas(options.roomId, options.uid, streamIndex, null)
+    }
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function muteLocalVideo(options : MuteLocalVideoOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcRoomManager.hasRoom(options.roomId)) {
+    const err = new AnyRtcFailImpl(9010003)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcRoomManager.muteLocalVideo(options.roomId, options.mute)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+// ===================== Effects =====================
+
+export function initEffects(options : InitEffectsOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const result = RtcEffectsManager.initEffects(options.licensePath, options.modelPath)
+    if (result == 0) {
+      options.success?.({})
+    } else {
+      const err = new AnyRtcFailImpl(9010009)
+      options.fail?.(err)
+    }
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function enableBeauty(options : EnableBeautyOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    RtcEffectsManager.enableBeauty(options.enable)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setBeautyParam(options : SetBeautyParamOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    const mode = RtcTypeConverter.toEffectBeautyMode(options.mode)
+    RtcEffectsManager.setBeautyParam(mode, options.intensity.toFloat())
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setFilter(options : SetFilterOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcEffectsManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010008)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEffectsManager.setColorFilter(options.filterPath)
+    RtcEffectsManager.setColorFilterIntensity((options.intensity ?? 0.5).toFloat())
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setSticker(options : SetStickerOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcEffectsManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010008)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    const nodes = [options.stickerPath]
+    RtcEffectsManager.setEffectNodes(nodes)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setEffectNodes(options : SetEffectNodesOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcEffectsManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010008)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEffectsManager.setEffectNodes(options.nodePaths)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function updateEffectNode(options : UpdateEffectNodeOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcEffectsManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010008)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEffectsManager.updateEffectNode(options.nodePath, options.key, options.value.toFloat())
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function setVirtualBackground(options : SetVirtualBackgroundOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcEffectsManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010008)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEffectsManager.setVirtualBackground(options.sourceValue, options.sourceType)
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function disableVirtualBackground(options : DisableVirtualBackgroundOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  if (!RtcEffectsManager.isInitialized()) {
+    const err = new AnyRtcFailImpl(9010008)
+    options.fail?.(err)
+    options.complete?.()
+    return
+  }
+
+  try {
+    RtcEffectsManager.disableVirtualBackground()
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+export function disposeEffects(options : DisposeEffectsOptions) : void {
+  if (!ensureEngine(options.fail, options.complete)) return
+
+  try {
+    RtcEffectsManager.dispose()
+    options.success?.({})
+  } catch (e : Exception) {
+    const err = new AnyRtcFailImpl(9010011)
+    options.fail?.(err)
+  }
+  options.complete?.()
+}
+
+// ===================== Events =====================
+
+// Room events - each as a separate function
+
+@UTSJS.keepAlive
+export function onRoomStateChanged(options : OnRoomStateChangedOptions) : void {
+  const handler = RtcEventProxy.getOrCreateRoomHandler(options.roomId)
+  handler.onRoomStateChangedCallback = (roomId : string, uid : string, state : number, extraInfo : string) => {
+    options.callback({
+      roomId: roomId, uid: uid, state: state as number, extraInfo: extraInfo
+    })
+  }
+  RtcRoomManager.setRoomEventHandler(options.roomId, handler)
+}
+
+@UTSJS.keepAlive
+export function onUserJoined(options : OnUserJoinedOptions) : void {
+  const handler = RtcEventProxy.getOrCreateRoomHandler(options.roomId)
+  handler.onUserJoinedCallback = (roomId : string, uid : string) => {
+    options.callback({
+      roomId: roomId, uid: uid, elapsed: 0
+    })
+  }
+  RtcRoomManager.setRoomEventHandler(options.roomId, handler)
+}
+
+@UTSJS.keepAlive
+export function onUserLeave(options : OnUserLeaveOptions) : void {
+  const handler = RtcEventProxy.getOrCreateRoomHandler(options.roomId)
+  handler.onUserLeaveCallback = (roomId : string, uid : string, reason : number) => {
+    options.callback({
+      roomId: roomId, uid: uid, reason: reason as number
+    })
+  }
+  RtcRoomManager.setRoomEventHandler(options.roomId, handler)
+}
+
+@UTSJS.keepAlive
+export function onUserPublishStream(options : OnUserPublishStreamOptions) : void {
+  const handler = RtcEventProxy.getOrCreateRoomHandler(options.roomId)
+  handler.onUserPublishStreamCallback = (roomId : string, uid : string, mediaType : string) => {
+    options.callback({
+      roomId: roomId, uid: uid, streamIndex: mediaType as AnyRtcStreamIndex
+    })
+  }
+  RtcRoomManager.setRoomEventHandler(options.roomId, handler)
+}
+
+@UTSJS.keepAlive
+export function onUserUnpublishStream(options : OnUserUnpublishStreamOptions) : void {
+  const handler = RtcEventProxy.getOrCreateRoomHandler(options.roomId)
+  handler.onUserUnpublishStreamCallback = (roomId : string, uid : string, mediaType : string) => {
+    options.callback({
+      roomId: roomId, uid: uid, streamIndex: mediaType as AnyRtcStreamIndex
+    })
+  }
+  RtcRoomManager.setRoomEventHandler(options.roomId, handler)
+}
+
+@UTSJS.keepAlive
+export function onFirstRemoteVideoFrameDecoded(options : OnFirstRemoteVideoFrameDecodedOptions) : void {
+  if (eventProxy == null) return
+  eventProxy!.onFirstRemoteVideoFrameDecodedCallback = (uid : string, streamIndex : string, width : number, height : number) => {
+    options.callback({
+      roomId: options.roomId, uid: uid, streamIndex: streamIndex as AnyRtcStreamIndex,
+      width: width as number, height: height as number, elapsed: 0
+    })
+  }
+}
+
+@UTSJS.keepAlive
+export function onRoomStats(options : OnRoomStatsOptions) : void {
+  const handler = RtcEventProxy.getOrCreateRoomHandler(options.roomId)
+  handler.onRoomStatsCallback = (roomId : string, userCount : number, duration : number) => {
+    options.callback({
+      roomId: roomId, userCount: userCount as number, duration: duration as number
+    })
+  }
+  RtcRoomManager.setRoomEventHandler(options.roomId, handler)
+}
+
+export function offRoomEvent(options : RemoveRoomEventListenerOptions) : void {
+  RtcEventProxy.removeRoomHandler(options.roomId)
+}
+
+// Engine events
+
+@UTSJS.keepAlive
+export function onEngineWarning(options : OnEngineWarningOptions) : void {
+  if (eventProxy == null) return
+  eventProxy!.onWarningCallback = (code : number, message : string) => {
+    options.callback({ code: code as number, message: message })
+  }
+}
+
+@UTSJS.keepAlive
+export function onEngineError(options : OnEngineErrorOptions) : void {
+  if (eventProxy == null) return
+  eventProxy!.onErrorCallback = (code : number, message : string) => {
+    options.callback({ code: code as number, message: message })
+  }
+}
+
+export function offEngineEvent(options : RemoveEngineEventListenerOptions) : void {
+  eventProxy?.clearEngineCallbacks()
+}

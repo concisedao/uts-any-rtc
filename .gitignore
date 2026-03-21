@@ -1,0 +1,15 @@
+unpackage/
+.hbuilderx/
+node_modules/
+.DS_Store
+
+# Sensitive files
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+
+# Build artifacts
+*.apk
+*.ipa
+.DS_Store

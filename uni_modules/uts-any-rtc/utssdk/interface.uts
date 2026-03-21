@@ -1,0 +1,452 @@
+/**
+ * uts-any-rtc 接口定义
+ * BytePlus RTC + Effects 插件跨平台类型和 API 签名
+ */
+
+// ===================== Error Types =====================
+
+export type AnyRtcErrorCode =
+  | 9010001  // ENGINE_NOT_INITIALIZED
+  | 9010002  // ENGINE_ALREADY_INITIALIZED
+  | 9010003  // ROOM_NOT_CREATED
+  | 9010004  // ROOM_ALREADY_JOINED
+  | 9010005  // ROOM_NOT_JOINED
+  | 9010006  // CAMERA_PERMISSION_DENIED
+  | 9010007  // MICROPHONE_PERMISSION_DENIED
+  | 9010008  // EFFECTS_NOT_INITIALIZED
+  | 9010009  // EFFECTS_LICENSE_INVALID
+  | 9010010  // INVALID_PARAMETER
+  | 9010011  // SDK_INTERNAL_ERROR
+  | 9010012  // EFFECTS_RESOURCE_NOT_FOUND
+
+export interface AnyRtcFail extends IUniError {
+  errCode : AnyRtcErrorCode
+}
+
+// ===================== Enums (string literal unions) =====================
+
+export type AnyRtcVideoRenderMode = 'hidden' | 'fit' | 'fill'
+export type AnyRtcVideoMirrorType = 'none' | 'render' | 'renderAndEncoder'
+export type AnyRtcCameraFacing = 'front' | 'back'
+export type AnyRtcAudioRoute = 'earpiece' | 'speaker'
+export type AnyRtcRoomProfile = 'communication' | 'liveBroadcasting' | 'game' | 'cloudGame'
+export type AnyRtcChannelRole = 'broadcaster' | 'audience'
+export type AnyRtcBeautyMode = 'whiten' | 'smooth' | 'sharpen'
+export type AnyRtcVirtualBgSourceType = 'color' | 'image'
+export type AnyRtcStreamIndex = 'main' | 'screen'
+export type AnyRtcVideoCodec = 'h264' | 'h265'
+
+// ===================== Configuration Types =====================
+
+export type AnyRtcEngineConfig = {
+  appId : string
+  parameters ?: string
+}
+
+export type AnyRtcJoinRoomConfig = {
+  roomId : string
+  userId : string
+  token : string
+  userName ?: string
+  roomProfile ?: AnyRtcRoomProfile
+  role ?: AnyRtcChannelRole
+  isAutoPublish ?: boolean
+  isAutoSubscribeAudio ?: boolean
+  isAutoSubscribeVideo ?: boolean
+}
+
+export type AnyRtcVideoEncoderConfig = {
+  width ?: number
+  height ?: number
+  frameRate ?: number
+  bitrate ?: number
+  codec ?: AnyRtcVideoCodec
+}
+
+export type AnyRtcAudioProfile = {
+  sampleRate ?: number
+  channels ?: number
+}
+
+export type AnyRtcVideoCanvas = {
+  uid : string
+  roomId ?: string
+  renderMode ?: AnyRtcVideoRenderMode
+  mirrorType ?: AnyRtcVideoMirrorType
+  streamIndex ?: AnyRtcStreamIndex
+}
+
+export type AnyRtcEffectsConfig = {
+  licensePath : string
+  modelPath : string
+}
+
+export type AnyRtcBeautyParam = {
+  mode : AnyRtcBeautyMode
+  intensity : number
+}
+
+export type AnyRtcFilterConfig = {
+  filterPath : string
+  intensity ?: number
+}
+
+export type AnyRtcStickerConfig = {
+  stickerPath : string
+}
+
+export type AnyRtcVirtualBgConfig = {
+  sourceType : AnyRtcVirtualBgSourceType
+  sourceValue : string
+}
+
+export type AnyRtcEffectNodeConfig = {
+  nodePaths : string[]
+}
+
+// ===================== Event Types =====================
+
+export type AnyRtcRoomStateEvent = {
+  roomId : string
+  uid : string
+  state : number
+  extraInfo : string
+}
+
+export type AnyRtcUserJoinedEvent = {
+  roomId : string
+  uid : string
+  elapsed : number
+}
+
+export type AnyRtcUserLeaveEvent = {
+  roomId : string
+  uid : string
+  reason : number
+}
+
+export type AnyRtcStreamEvent = {
+  roomId : string
+  uid : string
+  streamIndex : AnyRtcStreamIndex
+}
+
+export type AnyRtcRemoteVideoFirstFrameEvent = {
+  roomId : string
+  uid : string
+  streamIndex : AnyRtcStreamIndex
+  width : number
+  height : number
+  elapsed : number
+}
+
+export type AnyRtcRoomStatsEvent = {
+  roomId : string
+  userCount : number
+  duration : number
+}
+
+export type AnyRtcWarningEvent = {
+  code : number
+  message : string
+}
+
+export type AnyRtcErrorEvent = {
+  code : number
+  message : string
+}
+
+export type AnyRtcLocalVideoStatsEvent = {
+  width : number
+  height : number
+  sentKBitrate : number
+  frameRate : number
+}
+
+export type AnyRtcLocalAudioStatsEvent = {
+  sentKBitrate : number
+  audioLevel : number
+}
+
+// ===================== Event Listener Options =====================
+
+// Room events - each event is a separate function
+export type OnRoomStateChangedOptions = {
+  roomId : string
+  callback : (event : AnyRtcRoomStateEvent) => void
+}
+
+export type OnUserJoinedOptions = {
+  roomId : string
+  callback : (event : AnyRtcUserJoinedEvent) => void
+}
+
+export type OnUserLeaveOptions = {
+  roomId : string
+  callback : (event : AnyRtcUserLeaveEvent) => void
+}
+
+export type OnUserPublishStreamOptions = {
+  roomId : string
+  callback : (event : AnyRtcStreamEvent) => void
+}
+
+export type OnUserUnpublishStreamOptions = {
+  roomId : string
+  callback : (event : AnyRtcStreamEvent) => void
+}
+
+export type OnFirstRemoteVideoFrameDecodedOptions = {
+  roomId : string
+  callback : (event : AnyRtcRemoteVideoFirstFrameEvent) => void
+}
+
+export type OnRoomStatsOptions = {
+  roomId : string
+  callback : (event : AnyRtcRoomStatsEvent) => void
+}
+
+// Engine events
+export type OnEngineWarningOptions = {
+  callback : (event : AnyRtcWarningEvent) => void
+}
+
+export type OnEngineErrorOptions = {
+  callback : (event : AnyRtcErrorEvent) => void
+}
+
+// ===================== API Options (success/fail/complete) =====================
+
+// Engine
+export type CreateEngineOptions = {
+  appId : string
+  parameters ?: string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type DestroyEngineOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+// Room
+export type CreateRoomOptions = {
+  roomId : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type JoinRoomOptions = {
+  roomId : string
+  userId : string
+  token : string
+  userName ?: string
+  roomProfile ?: AnyRtcRoomProfile
+  role ?: AnyRtcChannelRole
+  isAutoPublish ?: boolean
+  isAutoSubscribeAudio ?: boolean
+  isAutoSubscribeVideo ?: boolean
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type LeaveRoomOptions = {
+  roomId : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type DestroyRoomOptions = {
+  roomId : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+// Audio
+export type StartAudioCaptureOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type StopAudioCaptureOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetAudioProfileOptions = {
+  sampleRate ?: number
+  channels ?: number
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetAudioRouteOptions = {
+  route : AnyRtcAudioRoute
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type MuteLocalAudioOptions = {
+  mute : boolean
+  roomId : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+// Video
+export type StartVideoCaptureOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type StopVideoCaptureOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetVideoEncoderConfigOptions = {
+  width ?: number
+  height ?: number
+  frameRate ?: number
+  bitrate ?: number
+  codec ?: AnyRtcVideoCodec
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SwitchCameraOptions = {
+  facing ?: AnyRtcCameraFacing
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetLocalVideoCanvasOptions = {
+  uid : string
+  view ?: any
+  renderMode ?: AnyRtcVideoRenderMode
+  mirrorType ?: AnyRtcVideoMirrorType
+  streamIndex ?: AnyRtcStreamIndex
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetRemoteVideoCanvasOptions = {
+  uid : string
+  roomId : string
+  view ?: any
+  renderMode ?: AnyRtcVideoRenderMode
+  mirrorType ?: AnyRtcVideoMirrorType
+  streamIndex ?: AnyRtcStreamIndex
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type MuteLocalVideoOptions = {
+  mute : boolean
+  roomId : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+// Effects
+export type InitEffectsOptions = {
+  licensePath : string
+  modelPath : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type EnableBeautyOptions = {
+  enable : boolean
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetBeautyParamOptions = {
+  mode : AnyRtcBeautyMode
+  intensity : number
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetFilterOptions = {
+  filterPath : string
+  intensity ?: number
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetStickerOptions = {
+  stickerPath : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetEffectNodesOptions = {
+  nodePaths : string[]
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type UpdateEffectNodeOptions = {
+  nodePath : string
+  key : string
+  value : number
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type SetVirtualBackgroundOptions = {
+  sourceType : AnyRtcVirtualBgSourceType
+  sourceValue : string
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type DisableVirtualBackgroundOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+export type DisposeEffectsOptions = {
+  success ?: (res : any) => void
+  fail ?: (err : AnyRtcFail) => void
+  complete ?: () => void
+}
+
+// Event listener removal
+export type RemoveRoomEventListenerOptions = {
+  roomId : string
+}
+export type RemoveEngineEventListenerOptions = {
+  placeholder ?: boolean
+}
+

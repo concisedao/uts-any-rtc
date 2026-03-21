@@ -1,0 +1,36 @@
+{
+  "id": "uts-any-rtc",
+  "displayName": "AnyRTC - BytePlus RTC & Effects",
+  "version": "1.0.0",
+  "description": "UTS hybrid plugin wrapping BytePlus RTC SDK and Effects SDK for real-time audio/video communication with beauty effects",
+  "keywords": [
+    "rtc",
+    "byteplus",
+    "beauty",
+    "effects",
+    "video",
+    "audio"
+  ],
+  "dcloudext": {
+    "type": "uts"
+  },
+  "uni_modules": {
+    "type": "uts",
+    "dependencies": [],
+    "encrypt": [],
+    "platforms": {
+      "cloud": {
+        "tcb": false,
+        "aliyun": false
+      },
+      "client": {
+        "App": {
+          "app-android": true,
+          "app-ios": true
+        },
+        "H5": false,
+        "MiniProgram": false
+      }
+    }
+  }
+}

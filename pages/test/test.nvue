@@ -1,0 +1,564 @@
+<template>
+  <scroller class="page">
+    <text class="title">uts-any-rtc Test</text>
+
+    <!-- Config (hardcoded for testing) -->
+    <view class="section">
+      <text class="section-title">Config</text>
+      <text class="config-text">AppId: {{appId.substring(0,8)}}...</text>
+      <text class="config-text">Token: {{token.substring(0,16)}}...</text>
+      <text class="config-text">RoomId: {{roomId}}</text>
+      <text class="config-text">UserId: {{userId}}</text>
+    </view>
+
+    <!-- Engine -->
+    <view class="section">
+      <text class="section-title">Engine</text>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doCreateEngine">createEngine</button>
+        <button class="btn btn-margin" size="mini" @click="doDestroyEngine">destroyEngine</button>
+      </view>
+    </view>
+
+    <!-- Room -->
+    <view class="section">
+      <text class="section-title">Room</text>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doCreateRoom">createRoom</button>
+        <button class="btn btn-margin" size="mini" @click="doJoinRoom">joinRoom</button>
+      </view>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doLeaveRoom">leaveRoom</button>
+        <button class="btn btn-margin" size="mini" @click="doDestroyRoom">destroyRoom</button>
+      </view>
+    </view>
+
+    <!-- Audio -->
+    <view class="section">
+      <text class="section-title">Audio</text>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doStartAudio">startAudio</button>
+        <button class="btn btn-margin" size="mini" @click="doStopAudio">stopAudio</button>
+      </view>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doMuteAudio(true)">muteAudio</button>
+        <button class="btn btn-margin" size="mini" @click="doMuteAudio(false)">unmuteAudio</button>
+      </view>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doSetRoute('speaker')">speaker</button>
+        <button class="btn btn-margin" size="mini" @click="doSetRoute('earpiece')">earpiece</button>
+      </view>
+    </view>
+
+    <!-- Video -->
+    <view class="section">
+      <text class="section-title">Video</text>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doStartVideo">startVideo</button>
+        <button class="btn btn-margin" size="mini" @click="doStopVideo">stopVideo</button>
+      </view>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doSwitchCamera">switchCamera</button>
+        <button class="btn btn-margin" size="mini" @click="doMuteVideo(true)">muteVideo</button>
+        <button class="btn btn-margin" size="mini" @click="doMuteVideo(false)">unmuteVideo</button>
+      </view>
+    </view>
+
+    <!-- Video Preview -->
+    <view class="section">
+      <text class="section-title">Local Preview</text>
+      <view class="video-box">
+        <any-rtc-video-view
+          v-if="showLocalVideo"
+          uid=""
+          :renderMode="'hidden'"
+          style="width: 100%; height: 400rpx;"
+        />
+      </view>
+    </view>
+
+    <view class="section">
+      <text class="section-title">Remote Video</text>
+      <text v-if="remoteUid != ''" class="hint">remote: {{remoteUid}}</text>
+      <view class="video-box">
+        <any-rtc-video-view
+          v-if="remoteUid != ''"
+          :uid="remoteUid"
+          :roomId="roomId"
+          :renderMode="'hidden'"
+          style="width: 100%; height: 400rpx;"
+        />
+      </view>
+      <text v-if="remoteUid == ''" class="hint">等待远端用户加入...</text>
+    </view>
+
+    <!-- Effects -->
+    <view class="section">
+      <text class="section-title">Effects</text>
+      <input class="input" v-model="licensePath" placeholder="licensePath" />
+      <input class="input" v-model="modelPath" placeholder="modelPath" />
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doInitEffects">initEffects</button>
+        <button class="btn btn-margin" size="mini" @click="doDisposeEffects">dispose</button>
+      </view>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doEnableBeauty(true)">beauty ON</button>
+        <button class="btn btn-margin" size="mini" @click="doEnableBeauty(false)">beauty OFF</button>
+      </view>
+      <view class="btn-row">
+        <button class="btn btn-margin" size="mini" @click="doSetBeauty('smooth', 0.8)">smooth 0.8</button>
+        <button class="btn btn-margin" size="mini" @click="doSetBeauty('whiten', 0.5)">whiten 0.5</button>
+        <button class="btn btn-margin" size="mini" @click="doSetBeauty('sharpen', 0.3)">sharpen 0.3</button>
+      </view>
+    </view>
+
+    <!-- Logs -->
+    <view class="section">
+      <text class="section-title">Logs ({{logs.length}})</text>
+      <button class="btn btn-margin" size="mini" @click="logs = []">clear</button>
+      <view class="log-box">
+        <text v-for="(log, i) in logs" :key="i" class="log-item" :class="log.type">{{log.text}}</text>
+      </view>
+    </view>
+  </scroller>
+</template>
+
+<script>
+  import {
+    createEngine,
+    destroyEngine,
+    createRoom,
+    joinRoom,
+    leaveRoom,
+    destroyRoom,
+    startAudioCapture,
+    stopAudioCapture,
+    setAudioRoute,
+    muteLocalAudio,
+    startVideoCapture,
+    stopVideoCapture,
+    switchCamera,
+    muteLocalVideo,
+    initEffects,
+    enableBeauty,
+    setBeautyParam,
+    disposeEffects,
+    onRoomStateChanged,
+    onUserJoined,
+    onUserLeave,
+    onUserPublishStream,
+    onUserUnpublishStream,
+    onFirstRemoteVideoFrameDecoded,
+    offRoomEvent,
+    onEngineWarning,
+    onEngineError,
+    offEngineEvent,
+  } from '@/uni_modules/uts-any-rtc'
+
+  export default {
+    data() {
+      return {
+        appId: '',
+        token: '',
+        roomId: '',
+        userId: '',
+        licensePath: '',
+        modelPath: '',
+        showLocalVideo: false,
+        remoteUid: '',
+        cameraFront: true,
+        logs: [],
+      }
+    },
+    methods: {
+      log(msg) {
+        console.log('[RTC]', msg)
+        this.logs.unshift({ text: msg, type: 'info' })
+      },
+      logOk(msg) {
+        console.log('[RTC OK]', msg)
+        this.logs.unshift({ text: msg, type: 'ok' })
+      },
+      logErr(msg) {
+        console.error('[RTC ERR]', msg)
+        this.logs.unshift({ text: msg, type: 'err' })
+      },
+
+      // ==================== Engine ====================
+      doCreateEngine() {
+        if (this.appId == '') {
+          this.logErr('appId is empty')
+          return
+        }
+        this.log('createEngine...')
+        createEngine({
+          appId: this.appId,
+          success: (_) => {
+            this.logOk('createEngine success')
+            this.registerEngineEvents()
+          },
+          fail: (err) => {
+            this.logErr('createEngine fail: ' + err.errCode + ' ' + err.errMsg)
+          },
+          complete: () => {}
+        })
+      },
+
+      doDestroyEngine() {
+        this.showLocalVideo = false
+        this.remoteUid = ''
+        offEngineEvent({ placeholder: true })
+        destroyEngine({
+          success: (_) => {
+            this.logOk('destroyEngine success')
+          },
+          fail: (err) => {
+            this.logErr('destroyEngine fail: ' + err.errCode)
+          },
+          complete: () => {}
+        })
+      },
+
+      // ==================== Room ====================
+      doCreateRoom() {
+        this.log('createRoom: ' + this.roomId)
+        createRoom({
+          roomId: this.roomId,
+          success: (_) => {
+            this.logOk('createRoom success')
+            this.registerRoomEvents()
+          },
+          fail: (err) => {
+            this.logErr('createRoom fail: ' + err.errCode)
+          },
+          complete: () => {}
+        })
+      },
+
+      doJoinRoom() {
+        if (this.token == '') {
+          this.logErr('token is empty')
+          return
+        }
+        this.log('joinRoom: ' + this.roomId + ' as ' + this.userId)
+        joinRoom({
+          roomId: this.roomId,
+          userId: this.userId,
+          token: this.token,
+          userName: this.userId,
+          roomProfile: 'communication',
+          isAutoPublish: true,
+          isAutoSubscribeAudio: true,
+          isAutoSubscribeVideo: true,
+          success: (_) => {
+            this.logOk('joinRoom success')
+            // remoteUid is auto-set by onUserPublishStream event
+          },
+          fail: (err) => {
+            this.logErr('joinRoom fail: ' + err.errCode)
+          },
+          complete: () => {}
+        })
+      },
+
+      doLeaveRoom() {
+        this.remoteUid = ''
+        leaveRoom({
+          roomId: this.roomId,
+          success: (_) => {
+            this.logOk('leaveRoom success')
+          },
+          fail: (err) => {
+            this.logErr('leaveRoom fail: ' + err.errCode)
+          },
+          complete: () => {}
+        })
+      },
+
+      doDestroyRoom() {
+        this.remoteUid = ''
+        offRoomEvent({ roomId: this.roomId })
+        destroyRoom({
+          roomId: this.roomId,
+          success: (_) => {
+            this.logOk('destroyRoom success')
+          },
+          fail: (err) => {
+            this.logErr('destroyRoom fail: ' + err.errCode)
+          },
+          complete: () => {}
+        })
+      },
+
+      // ==================== Audio ====================
+      doStartAudio() {
+        startAudioCapture({
+          success: (_) => { this.logOk('startAudioCapture success') },
+          fail: (err) => { this.logErr('startAudioCapture fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doStopAudio() {
+        stopAudioCapture({
+          success: (_) => { this.logOk('stopAudioCapture success') },
+          fail: (err) => { this.logErr('stopAudioCapture fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doMuteAudio(mute) {
+        muteLocalAudio({
+          mute: mute,
+          roomId: this.roomId,
+          success: (_) => { this.logOk('muteLocalAudio(' + mute + ') success') },
+          fail: (err) => { this.logErr('muteLocalAudio fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doSetRoute(route) {
+        setAudioRoute({
+          route: route,
+          success: (_) => { this.logOk('setAudioRoute(' + route + ') success') },
+          fail: (err) => { this.logErr('setAudioRoute fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      // ==================== Video ====================
+      doStartVideo() {
+        startVideoCapture({
+          success: (_) => {
+            this.logOk('startVideoCapture success')
+            this.showLocalVideo = true
+          },
+          fail: (err) => { this.logErr('startVideoCapture fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doStopVideo() {
+        this.showLocalVideo = false
+        stopVideoCapture({
+          success: (_) => { this.logOk('stopVideoCapture success') },
+          fail: (err) => { this.logErr('stopVideoCapture fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doSwitchCamera() {
+        this.cameraFront = !this.cameraFront
+        var facing = this.cameraFront ? 'front' : 'back'
+        switchCamera({
+          facing: facing,
+          success: (_) => { this.logOk('switchCamera → ' + facing) },
+          fail: (err) => { this.logErr('switchCamera fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doMuteVideo(mute) {
+        muteLocalVideo({
+          mute: mute,
+          roomId: this.roomId,
+          success: (_) => { this.logOk('muteLocalVideo(' + mute + ') success') },
+          fail: (err) => { this.logErr('muteLocalVideo fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      // ==================== Effects ====================
+      doInitEffects() {
+        if (this.licensePath == '' || this.modelPath == '') {
+          this.logErr('licensePath or modelPath is empty')
+          return
+        }
+        initEffects({
+          licensePath: this.licensePath,
+          modelPath: this.modelPath,
+          success: (_) => { this.logOk('initEffects success') },
+          fail: (err) => { this.logErr('initEffects fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doEnableBeauty(enable) {
+        enableBeauty({
+          enable: enable,
+          success: (_) => { this.logOk('enableBeauty(' + enable + ') success') },
+          fail: (err) => { this.logErr('enableBeauty fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doSetBeauty(mode, intensity) {
+        setBeautyParam({
+          mode: mode,
+          intensity: intensity,
+          success: (_) => { this.logOk('setBeautyParam(' + mode + ', ' + intensity + ') success') },
+          fail: (err) => { this.logErr('setBeautyParam fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      doDisposeEffects() {
+        disposeEffects({
+          success: (_) => { this.logOk('disposeEffects success') },
+          fail: (err) => { this.logErr('disposeEffects fail: ' + err.errCode) },
+          complete: () => {}
+        })
+      },
+
+      // ==================== Events ====================
+      registerEngineEvents() {
+        onEngineWarning({
+          callback: (e) => {
+            this.log('engine warning: ' + e.code)
+          }
+        })
+        onEngineError({
+          callback: (e) => {
+            this.logErr('engine error: ' + e.code + ' ' + e.message)
+          }
+        })
+      },
+
+      registerRoomEvents() {
+        onRoomStateChanged({
+          roomId: this.roomId,
+          callback: (e) => {
+            this.log('roomState: state=' + e.state + ' uid=' + e.uid)
+          }
+        })
+        onUserJoined({
+          roomId: this.roomId,
+          callback: (e) => {
+            this.logOk('userJoined: ' + e.uid)
+            if (this.remoteUid == '') {
+              this.remoteUid = e.uid
+            }
+          }
+        })
+        onUserLeave({
+          roomId: this.roomId,
+          callback: (e) => {
+            this.log('userLeave: ' + e.uid + ' reason=' + e.reason)
+            if (this.remoteUid == e.uid) {
+              this.remoteUid = ''
+            }
+          }
+        })
+        onUserPublishStream({
+          roomId: this.roomId,
+          callback: (e) => {
+            this.log('userPublishStream: ' + e.uid)
+            if (this.remoteUid == '') {
+              this.remoteUid = e.uid
+            }
+          }
+        })
+        onUserUnpublishStream({
+          roomId: this.roomId,
+          callback: (e) => {
+            this.log('userUnpublishStream: ' + e.uid)
+          }
+        })
+        onFirstRemoteVideoFrameDecoded({
+          roomId: this.roomId,
+          callback: (e) => {
+            this.logOk('firstRemoteFrame: ' + e.uid + ' ' + e.width + 'x' + e.height)
+          }
+        })
+      },
+    }
+  }
+</script>
+
+<style>
+  .page {
+    padding: 20rpx;
+  }
+  .title {
+    font-size: 36rpx;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20rpx;
+  }
+  .section {
+    margin-bottom: 24rpx;
+    padding: 16rpx;
+    border-radius: 12rpx;
+    background-color: #f8f8f8;
+  }
+  .section-title {
+    font-size: 28rpx;
+    font-weight: bold;
+    margin-bottom: 12rpx;
+  }
+  .btn-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-bottom: 12rpx;
+  }
+  .btn-margin {
+    margin-right: 16rpx;
+    margin-bottom: 10rpx;
+  }
+  .btn {
+    font-size: 28rpx;
+    padding: 10rpx 20rpx;
+  }
+  .config-text {
+    font-size: 24rpx;
+    color: #555;
+    padding-top: 4rpx;
+    padding-bottom: 4rpx;
+  }
+  .input {
+    border-width: 1px;
+    border-style: solid;
+    border-color: #ccc;
+    border-radius: 12rpx;
+    padding-top: 18rpx;
+    padding-bottom: 18rpx;
+    padding-left: 20rpx;
+    padding-right: 20rpx;
+    margin-bottom: 12rpx;
+    font-size: 30rpx;
+    color: #333;
+    height: 80rpx;
+    background-color: #fff;
+  }
+  .video-box {
+    width: 100%;
+    height: 400rpx;
+    background-color: #000;
+    border-radius: 8rpx;
+    overflow: hidden;
+  }
+  .hint {
+    font-size: 24rpx;
+    color: #999;
+    text-align: center;
+    margin-top: 8rpx;
+  }
+  .log-box {
+    height: 500rpx;
+    margin-top: 8rpx;
+  }
+  .log-item {
+    font-size: 22rpx;
+    padding: 4rpx 0;
+    border-bottom: 1px solid #eee;
+  }
+  .ok {
+    color: #4caf50;
+  }
+  .err {
+    color: #f44336;
+  }
+  .info {
+    color: #666;
+  }
+</style>

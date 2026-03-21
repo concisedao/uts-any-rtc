@@ -1,0 +1,35 @@
+{
+  "id": "any-rtc-video-view",
+  "displayName": "AnyRTC Video View",
+  "version": "1.0.0",
+  "description": "Native video rendering component for uts-any-rtc plugin",
+  "keywords": [
+    "rtc",
+    "video",
+    "component"
+  ],
+  "dcloudext": {
+    "type": "component-uts"
+  },
+  "uni_modules": {
+    "type": "component-uts",
+    "dependencies": [
+      "uts-any-rtc"
+    ],
+    "encrypt": [],
+    "platforms": {
+      "cloud": {
+        "tcb": false,
+        "aliyun": false
+      },
+      "client": {
+        "App": {
+          "app-android": true,
+          "app-ios": true
+        },
+        "H5": false,
+        "MiniProgram": false
+      }
+    }
+  }
+}
